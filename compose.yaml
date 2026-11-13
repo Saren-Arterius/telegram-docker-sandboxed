@@ -1,50 +1,11 @@
-# Telegram Desktop runs in a Docker container with strict limits. Telegram is trusted
-# software, but it opens files, links and, since November 2026, "mini apps" and message
-# widgets from strangers. That same month a working Android RCE demo landed via an ordinary
-# bot message (fixed before disclosure, Android only). This jail is the desktop answer for
-# the day the same headline names this client and no patch exists yet.
-# Start the container with this command:
-#   docker compose up -d
-#
-# Put td-setup-linux-x64-7.4.3.tar.xz in this directory before you build the image. Download
-# it with this command:
-#   curl -fLO https://github.com/telegramdesktop/tdesktop/releases/download/v7.4.3/td-setup-linux-x64-7.4.3.tar.xz
-# Run it again for each new version, and update the version and checksum in Dockerfile.
 services:
-  # x-grant prepares the host for the Telegram container. It runs one time, before telegram
-  # starts. It runs as root. It runs only the command written below. Telegram code does not
-  # run here.
-  #
-  # 1. It opens the display, which compose.wayland.yaml or compose.x11.yaml mounts (COMPOSE_FILE
-  #    in .env picks one). Wayland: an ACL on the socket, so uid 65534 can connect. X11: a
-  #    copy of your X cookie in ./share/.xauth, owned by uid 65534 with mode 600, and an ACL
-  #    on the X socket. The cookie copy is deleted at every start, so switching to Wayland
-  #    takes X access away. Sockets and cookies change at each login, so this runs every time.
-  # 3. It gives ./share to uid 65534, so the Telegram container can write files there.
-  # 4. It adds an ACL to your downloads folder, ${XDG_DOWNLOAD_DIR}/Telegram Desktop, which is
-  #    mounted inside the container as ~/Downloads. The folder keeps its owner: you. An ACL
-  #    entry is enough; no chown. Telegram writes new files there, and you can read, move and
-  #    delete them, because you own the directory.
-  # 5. It adds the firewall rules for the container. See the networks section at the end of
-  #    this file. Both chains are necessary. A packet for a port on this host goes to the
-  #    INPUT chain. It does not go to the FORWARD chain, so DOCKER-USER cannot see it.
-  #    Each chain gets one rule: send traffic from this subnet to the TG_JAIL chain. The
-  #    service clears TG_JAIL and builds it again every time, so a change in the rules below
-  #    takes effect on the next "docker compose up". The service does not add the jump rule
-  #    again if it is already there, so you can run "docker compose up" many times.
-  #    telegram starts only if this service exits with 0. The "set -e" command stops the
-  #    service if a rule fails, so the container never starts without its rules.
-  #    The first rule in TG_JAIL must name the resolver address. An ACCEPT rule for udp port
-  #    53 without a destination permits packets to any address on your LAN. The QQ jail
-  #    tested that: three datagrams, all three reached the wire.
-  #    TG_JAIL, not QQ_JAIL: the QQ jail owns the other chain, and two services must not
-  #    clear each other's rules. The subnet, 172.27.0.0/24, is also different, so the two
-  #    containers cannot see each other: two bridges cannot send packets to each other.
+  # Root setup before every start: display + downloads ACLs, firewall.
   x-grant:
-    image: alpine:3.22                         # Fixed version. The apk command below downloads packages from the network.
+    image: alpine:3.22
     user: "0"
-    network_mode: host                         # The rules belong to the host, so this service must use the host network namespace.
-    cap_add: [NET_ADMIN]                       # Needed for the iptables and setfacl commands only. Telegram code does not run here.
+    network_mode: host
+    cap_add: [NET_ADMIN]
+    # DNS ACCEPT must name 127.0.0.11; a bare udp/53 ACCEPT leaks to the LAN.
     command: >-
       sh -c 'set -e; chown 65534:65534 /share; rm -f /share/.xauth;
       apk add --no-cache acl iptables >/dev/null;
@@ -64,40 +25,29 @@ services:
       - ${XDG_DOWNLOAD_DIR:?not set; create .env, see README}/Telegram Desktop:/downloads
     restart: "no"
 
-  # The Telegram container.
   telegram:
     build: .
     depends_on:
       x-grant:
         condition: service_completed_successfully
-    init: true                                # tini as PID 1 forwards SIGTERM; Telegram as PID 1 ignores it and "stop" waits 10 s for SIGKILL.
-    user: "65534:65534"                        # nobody. Do not use your own uid.
-    cap_drop: [ALL]                            # The container starts with no Linux capabilities.
-    security_opt: ["no-new-privileges:true"]   # A program cannot gain privileges. Docker also applies its default seccomp profile.
+    init: true                                 # Else stop waits 10 s: PID 1 ignores SIGTERM.
+    user: "65534:65534"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     read_only: true
-    tmpfs: ["/tmp:mode=1777,size=256m"]        # /tmp is writable, and programs cannot execute files from it.
-    shm_size: 1g                               # Telegram uses little shared memory itself. Firefox uses more.
-    pids_limit: 4096                           # The limit counts threads, not only processes. Telegram uses far fewer than Electron apps; Firefox takes several hundred.
-    mem_limit: 6g                              # Limit: the container can use 6 GB of memory at most.
+    tmpfs: ["/tmp:mode=1777,size=256m"]
+    shm_size: 1g
+    pids_limit: 4096
+    mem_limit: 6g
     environment:
       XDG_RUNTIME_DIR: /tmp
     volumes:
-      - tg-home:/home/telegram                 # Telegram keeps its login, cache and chat history here. Docker creates the volume with the owner from the image.
-      - tg-bin:/opt/Telegram                   # The program itself, so the Updater can write the new version here. Docker seeds an empty volume from the image, so no setup step is needed.
-      - ./share:/share                         # You and Telegram exchange files here.
-      # Your downloads folder is ~/Downloads inside, read-only. Telegram saves to its default,
-      # ~/Downloads/Telegram Desktop, which is the one writable folder in it. x-grant gives
-      # uid 65534 access with an ACL; the folder and its files keep you as their owner.
+      - tg-home:/home/telegram
+      - tg-bin:/opt/Telegram                   # Writable for the updater.
+      - ./share:/share
       - ${XDG_DOWNLOAD_DIR}:/home/telegram/Downloads:ro
       - ${XDG_DOWNLOAD_DIR}/Telegram Desktop:/home/telegram/Downloads/Telegram Desktop
-      # Drag and drop: the drop carries file:// paths from the host, so a file must
-      # exist at the same path inside. The same folder again, at its host path. Files dropped
-      # from anywhere else fail; move them to Downloads first. The cost of both read-only
-      # mounts: code running in the jail can read everything in Downloads.
-      - ${XDG_DOWNLOAD_DIR}:${XDG_DOWNLOAD_DIR}:ro
-      # Clock follows the host timezone, as in the QQ jail: the bind mount resolves the
-      # symlink, so the file arrives without a zone name. Restart the container after
-      # "timedatectl set-timezone" on the host.
+      - ${XDG_DOWNLOAD_DIR}:${XDG_DOWNLOAD_DIR}:ro   # Drag and drop uses host paths.
       - /etc/localtime:/etc/localtime:ro
     restart: "no"
     networks: [tg-net]
@@ -107,23 +57,7 @@ volumes:
   tg-bin:
 
 networks:
-  # The container gets its own bridge and a fixed subnet. Two bridges cannot send packets to
-  # each other, unless a container connects to both of them. The QQ jail owns 172.26.0.0/24;
-  # this one uses 172.27.0.0/24. The firewall rules select this subnet as the source. The
-  # subnet is therefore part of the security. If you change it, delete the old jump rule in
-  # both chains, or the container has no rules. One command for each chain:
-  #   iptables -D INPUT -s <old-subnet> -j TG_JAIL
-  # INPUT gives the container access to nothing on this host: no sshd, no syncthing, no
-  # development server, no tailscale address.
-  # DOCKER-USER gives the container access to nothing that passes through this host: no
-  # computers on the LAN, no other Docker subnets, not even the QQ container.
-  # The REJECT rules cover these destinations: multicast, 127.0.0.0/8, 10.0.0.0/8,
-  # 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10 and 169.254.0.0/16.
-  # The ACCEPT rule for DNS must name 127.0.0.11, the address in /etc/resolv.conf. Docker
-  # answers DNS inside its own network sandbox, so these chains normally see no DNS packets
-  # at all. The rule keeps DNS working if that changes.
-  # The container has no IPv6 address, so it cannot send IPv6 packets. No IPv6 rule is
-  # necessary.
+  # Firewall matches this subnet; changing it leaves the old jump rules behind.
   tg-net:
     ipam:
       config:
