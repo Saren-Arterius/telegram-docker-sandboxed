@@ -24,6 +24,8 @@ RUN apt-get update \
 # go back to the version pinned in this file, delete the volume.
 # What the Telegram binary loads from the system, taken from ldd: the X and XCB client
 # libraries, GLib, Cairo, Pango, FreeType, Fontconfig, HarfBuzz, zlib.
+# The Wayland libraries: the binary loads them at runtime (dlopen, so ldd does not list them)
+# and draws through Wayland. The X libraries stay because the binary links them.
 # libasound2t64: sound output for voice messages.
 # fonts-noto-cjk: Chinese fonts. The container cannot use the fonts of the host.
 # firefox: a browser for the links you open in Telegram. This Telegram build has no built-in
@@ -39,6 +41,7 @@ RUN apt-get update \
  && printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' > /etc/apt/preferences.d/mozilla \
  && apt-get update \
  && apt-get install -y --no-install-recommends firefox \
+      libwayland-client0 libwayland-cursor0 libwayland-egl1 libwayland-server0 libegl1 libgbm1 libxkbcommon0 \
       libasound2t64 libx11-6 libxext6 libxrender1 libxcb1 libxcb-render0 libxcb-shm0 \
       libglib2.0-0t64 libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0 \
       libfreetype6 libfontconfig1 libharfbuzz0b zlib1g \
@@ -52,6 +55,6 @@ RUN apt-get update \
 ENV HOME=/home/telegram \
     QT_ACCESSIBILITY=0
 # No flags are needed here. Telegram is not Electron: there is no Chromium sandbox to
-# switch off, because this build has no Qt WebEngine. It draws through X11, which needs no
-# GPU and no shared memory beyond shm_size in compose.yaml.
+# switch off, because this build has no Qt WebEngine. It draws through Wayland shared memory
+# buffers, which needs no GPU.
 ENTRYPOINT ["/opt/Telegram/Telegram"]

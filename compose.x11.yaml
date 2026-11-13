@@ -1,0 +1,26 @@
+# Display: X11, for sessions without Wayland. Selected by COMPOSE_FILE in .env, see README.
+# Weaker than compose.wayland.yaml: any X11 client can log keys, take screenshots of and
+# type into every other X11 window, so exploited code in the jail could type commands into
+# an X11 terminal on your desktop.
+services:
+  x-grant:
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - type: bind                             # Your session's cookie; x-grant copies it to ./share/.xauth.
+        source: ${XAUTHORITY:-${HOME}/.Xauthority}
+        target: /xauth
+        read_only: true
+        bind: { create_host_path: false }
+  telegram:
+    # The host's hostname, for two reasons: X cookies are often bound to the hostname, and
+    # GNOME treats a window whose WM_CLIENT_MACHINE differs from the host as remote and never
+    # groups it under the launcher. Without capabilities the container cannot change it.
+    uts: host
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+      XAUTHORITY: /share/.xauth
+      QT_QPA_PLATFORM: xcb
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro

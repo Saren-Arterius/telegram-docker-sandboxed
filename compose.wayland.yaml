@@ -1,0 +1,18 @@
+# Display: Wayland (the default). Selected by COMPOSE_FILE in .env, see README.
+# Telegram gets the compositor socket and nothing of X11. On X11 every client can log keys,
+# take screenshots of and type into every other X11 window; Wayland gives each app its own
+# windows only. Prefer this file whenever your session is Wayland.
+services:
+  x-grant:
+    volumes:
+      - &socket
+        type: bind
+        source: ${XDG_RUNTIME_DIR:?not set; run from your desktop session}/${WAYLAND_DISPLAY:-wayland-0}
+        target: /wayland
+        bind: { create_host_path: false }      # Fail if there is no Wayland session, instead of creating a directory.
+  telegram:
+    environment:
+      WAYLAND_DISPLAY: /wayland                # An absolute path: the socket is mounted outside XDG_RUNTIME_DIR.
+      QT_QPA_PLATFORM: wayland                 # No DISPLAY and no X socket, so no X11 fallback.
+      MOZ_ENABLE_WAYLAND: "1"                  # Firefox, for links.
+    volumes: [*socket]

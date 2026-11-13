@@ -15,18 +15,13 @@ services:
   # starts. It runs as root. It runs only the command written below. Telegram code does not
   # run here.
   #
-  # 1. It copies the X session cookie to ./share/.xauth. Newest cookie first (ls -t): each
-  #    login adds a new .mutter-Xwaylandauth.* file and leaves the old ones in place, so the
-  #    alphabetical first is often a stale cookie. The container then dies with
-  #    "Invalid MIT-MAGIC-COOKIE-1 key". The file belongs to root and group render, with
-  #    mode 640. The Telegram container reads it because it has group 989.
-  #    It also removes the old si:localuser:nobody grant, if that grant exists.
-  #    Do not use "xhost +si:localuser:nobody". That command gives your desktop to every
-  #    process that runs as uid 65534 on the host.
-  # 2. It adds an ACL to the X socket, so uid 65534 can connect to it. This permits a
-  #    connection only. The cookie is still necessary.
+  # 1. It opens the display, which compose.wayland.yaml or compose.x11.yaml mounts (COMPOSE_FILE
+  #    in .env picks one). Wayland: an ACL on the socket, so uid 65534 can connect. X11: a
+  #    copy of your X cookie in ./share/.xauth, owned by uid 65534 with mode 600, and an ACL
+  #    on the X socket. The cookie copy is deleted at every start, so switching to Wayland
+  #    takes X access away. Sockets and cookies change at each login, so this runs every time.
   # 3. It gives ./share to uid 65534, so the Telegram container can write files there.
-  # 4. It adds an ACL to your downloads folder, /home/saren/下載/Telegram Desktop, which is
+  # 4. It adds an ACL to your downloads folder, ${XDG_DOWNLOAD_DIR}/Telegram Desktop, which is
   #    mounted inside the container as ~/Downloads. The folder keeps its owner: you. An ACL
   #    entry is enough; no chown. Telegram writes new files there, and you can read, move and
   #    delete them, because you own the directory.
@@ -50,15 +45,14 @@ services:
     user: "0"
     network_mode: host                         # The rules belong to the host, so this service must use the host network namespace.
     cap_add: [NET_ADMIN]                       # Needed for the iptables and setfacl commands only. Telegram code does not run here.
-    environment: { DISPLAY: ":0" }
     command: >-
-      sh -c 'set -e; f=$$(ls -t /xauth/.mutter-Xwaylandauth.* 2>/dev/null | head -1);
-      [ -n "$$f" ] || { echo "no xauth cookie found"; exit 1; };
-      chown 65534:65534 /share; install -o 0 -g 989 -m 640 "$$f" /share/.xauth;
-      apk add --no-cache acl xhost iptables >/dev/null;
-      setfacl -m u:65534:rw /tmp/.X11-unix/X0;
+      sh -c 'set -e; chown 65534:65534 /share; rm -f /share/.xauth;
+      apk add --no-cache acl iptables >/dev/null;
+      if [ -S /wayland ]; then setfacl -m u:65534:rw /wayland;
+      elif [ -f /xauth ]; then install -o 65534 -g 65534 -m 600 /xauth /share/.xauth;
+        d=$${DISPLAY#*:}; setfacl -m u:65534:rw /tmp/.X11-unix/X$${d%.*};
+      else echo "no display mounted: set COMPOSE_FILE in .env, see README"; exit 1; fi;
       setfacl -m u:65534:rwx /downloads;
-      XAUTHORITY=$$f xhost -si:localuser:nobody >/dev/null 2>&1 || true;
       iptables -N TG_JAIL 2>/dev/null || true; iptables -F TG_JAIL;
       iptables -A TG_JAIL -d 127.0.0.11 -p udp --dport 53 -j ACCEPT;
       iptables -A TG_JAIL -d 224.0.0.0/4,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,169.254.0.0/16 -j REJECT;
@@ -67,9 +61,7 @@ services:
       echo "x-grant done"'
     volumes:
       - ./share:/share
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /run/user/1000:/xauth:ro
-      - /home/saren/下載/Telegram Desktop:/downloads
+      - ${XDG_DOWNLOAD_DIR:?not set; create .env, see README}/Telegram Desktop:/downloads
     restart: "no"
 
   # The Telegram container.
@@ -78,31 +70,31 @@ services:
     depends_on:
       x-grant:
         condition: service_completed_successfully
-    uts: host                                  # Share the host's hostname. GNOME treats windows from another WM_CLIENT_MACHINE as remote and won't group them under the .desktop launcher. Without CAP_SYS_ADMIN the container cannot change it.
     init: true                                # tini as PID 1 forwards SIGTERM; Telegram as PID 1 ignores it and "stop" waits 10 s for SIGKILL.
     user: "65534:65534"                        # nobody. Do not use your own uid.
     cap_drop: [ALL]                            # The container starts with no Linux capabilities.
     security_opt: ["no-new-privileges:true"]   # A program cannot gain privileges. Docker also applies its default seccomp profile.
     read_only: true
     tmpfs: ["/tmp:mode=1777,size=256m"]        # /tmp is writable, and programs cannot execute files from it.
-    shm_size: 1g                               # Telegram draws through X11 and uses little shared memory itself. Firefox uses more.
+    shm_size: 1g                               # Telegram uses little shared memory itself. Firefox uses more.
     pids_limit: 4096                           # The limit counts threads, not only processes. Telegram uses far fewer than Electron apps; Firefox takes several hundred.
     mem_limit: 6g                              # Limit: the container can use 6 GB of memory at most.
-    group_add: ["989"]                         # The host group render. Gives access to ./share/.xauth.
     environment:
-      DISPLAY: ":0"
       XDG_RUNTIME_DIR: /tmp
-      XAUTHORITY: /share/.xauth
     volumes:
       - tg-home:/home/telegram                 # Telegram keeps its login, cache and chat history here. Docker creates the volume with the owner from the image.
       - tg-bin:/opt/Telegram                   # The program itself, so the Updater can write the new version here. Docker seeds an empty volume from the image, so no setup step is needed.
       - ./share:/share                         # You and Telegram exchange files here.
-      # Telegram saves received media here. It is ~/Downloads inside the container, which is
-      # the default download folder, so Telegram needs no setting. On the host it is your
-      # existing /home/saren/下載/Telegram Desktop. x-grant gives uid 65534 access with an
-      # ACL; the folder and its files keep you as their owner.
-      - /home/saren/下載/Telegram Desktop:/home/telegram/Downloads
-      - /tmp/.X11-unix:/tmp/.X11-unix:ro       # Read-only. The X client library uses this path. The container does not write here.
+      # Your downloads folder is ~/Downloads inside, read-only. Telegram saves to its default,
+      # ~/Downloads/Telegram Desktop, which is the one writable folder in it. x-grant gives
+      # uid 65534 access with an ACL; the folder and its files keep you as their owner.
+      - ${XDG_DOWNLOAD_DIR}:/home/telegram/Downloads:ro
+      - ${XDG_DOWNLOAD_DIR}/Telegram Desktop:/home/telegram/Downloads/Telegram Desktop
+      # Drag and drop: the drop carries file:// paths from the host, so a file must
+      # exist at the same path inside. The same folder again, at its host path. Files dropped
+      # from anywhere else fail; move them to Downloads first. The cost of both read-only
+      # mounts: code running in the jail can read everything in Downloads.
+      - ${XDG_DOWNLOAD_DIR}:${XDG_DOWNLOAD_DIR}:ro
       # Clock follows the host timezone, as in the QQ jail: the bind mount resolves the
       # symlink, so the file arrives without a zone name. Restart the container after
       # "timedatectl set-timezone" on the host.

@@ -3,9 +3,12 @@ Name=Telegram (Docker)
 Comment=Telegram Desktop in a Docker jail
 # "up -d" is idempotent: it starts the jail if it is stopped and does nothing if it is
 # already running. x-grant runs first, every time, so the firewall rules always match the
-# compose file before Telegram starts.
-Exec=/usr/bin/docker compose -f /home/saren/Work/personal-programming/telegram-docker-sandboxed/compose.yaml up -d
-Path=/home/saren/Work/personal-programming/telegram-docker-sandboxed
+# compose file before Telegram starts. Plain "docker compose" in Path=, because COMPOSE_FILE
+# in .env (Wayland or X11) is resolved against the current directory.
+# Install it under Telegram's Wayland app ID as the file name: GNOME matches Wayland windows
+# by desktop file name and X11 windows by StartupWMClass, so one file groups both. See README.
+Exec=/usr/bin/docker compose up -d
+Path=@DIR@
 Icon=/usr/share/icons/Numix-Circle/48/apps/telegram-desktop.svg
 Terminal=false
 Type=Application
@@ -17,5 +20,5 @@ Actions=stop;
 
 [Desktop Action stop]
 Name=Stop Telegram
-Exec=/usr/bin/docker compose -f /home/saren/Work/personal-programming/telegram-docker-sandboxed/compose.yaml stop
+Exec=/usr/bin/docker compose stop
 Icon=media-playback-stop

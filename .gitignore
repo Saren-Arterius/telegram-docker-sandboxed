@@ -6,3 +6,6 @@ td-setup-linux-x64-*.tar.xz
 # Telegram exchange. Docker creates this directory at the first start.
 share/
 *.log
+
+# Machine-specific: XDG_DOWNLOAD_DIR, see README.
+.env
