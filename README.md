@@ -17,6 +17,11 @@ docker compose up -d
 
 Use Wayland if you can: on X11 any client can keylog and type into other X11 windows.
 
+GPU (NVIDIA, needs nvidia-container-toolkit with CDI): append `:compose.nvidia.yaml` to
+`COMPOSE_FILE`, after either display file. Without it Qt draws in software. AMD/Intel GPUs
+aren't wired up yet. The GPU driver is extra kernel attack
+surface, so leave it off if you don't need it.
+
 ## What Telegram can reach
 
 - `~/Downloads`: your downloads folder, read-only; `Telegram Desktop/` inside is writable.
@@ -37,7 +42,7 @@ Use Wayland if you can: on X11 any client can keylog and type into other X11 win
   signature, only TLS. To pin a version instead, change the tarball and checksum in
   `Dockerfile`, then
   `docker compose down && docker volume rm telegram-docker-sandboxed_tg-bin && docker compose up -d --build`.
-- `libEGL`/`MESA` warnings are expected: there is no GPU, so Qt draws in software.
+- Without the GPU file, `libEGL`/`MESA` warnings are expected: Qt draws in software.
 
 ## Check
 

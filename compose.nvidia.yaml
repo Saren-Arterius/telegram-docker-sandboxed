@@ -1,0 +1,7 @@
+# NVIDIA GPU via nvidia-container-toolkit CDI. Add to COMPOSE_FILE.
+services:
+  telegram:
+    devices: [nvidia.com/gpu=all]
+    environment:
+      # egl-wayland2 fails window surfaces in the container (EGL_BAD_ALLOC); use egl-wayland.
+      __EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES: /usr/share/egl/egl_external_platform.d/10_nvidia_wayland.json
