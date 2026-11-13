@@ -1,0 +1,21 @@
+[Desktop Entry]
+Name=Telegram (Docker)
+Comment=Telegram Desktop in a Docker jail
+# "up -d" is idempotent: it starts the jail if it is stopped and does nothing if it is
+# already running. x-grant runs first, every time, so the firewall rules always match the
+# compose file before Telegram starts.
+Exec=/usr/bin/docker compose -f /home/saren/Work/personal-programming/telegram-docker-sandboxed/compose.yaml up -d
+Path=/home/saren/Work/personal-programming/telegram-docker-sandboxed
+Icon=/usr/share/icons/Numix-Circle/48/apps/telegram-desktop.svg
+Terminal=false
+Type=Application
+StartupWMClass=TelegramDesktop
+Categories=Chat;Network;InstantMessaging;Qt;
+Keywords=tg;chat;im;messaging;messenger;
+MimeType=x-scheme-handler/tg;
+Actions=stop;
+
+[Desktop Action stop]
+Name=Stop Telegram
+Exec=/usr/bin/docker compose -f /home/saren/Work/personal-programming/telegram-docker-sandboxed/compose.yaml stop
+Icon=media-playback-stop

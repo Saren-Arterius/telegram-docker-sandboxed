@@ -1,0 +1,8 @@
+# The official Telegram release tarball, about 86 MB. Download it with the curl command in
+# README.md.
+td-setup-linux-x64-*.tar.xz
+
+# Machine-specific and private: a copy of your X session cookie, and the files you and
+# Telegram exchange. Docker creates this directory at the first start.
+share/
+*.log
