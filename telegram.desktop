@@ -2,7 +2,7 @@
 Name=Telegram (Podman)
 Comment=Telegram Desktop in a rootless Podman jail
 # Install under Telegram's Wayland app ID as file name, see README.
-Exec=/usr/bin/podman compose up -d
+Exec=@DIR@/launch.sh %u
 Path=@DIR@
 Icon=telegram
 Terminal=false

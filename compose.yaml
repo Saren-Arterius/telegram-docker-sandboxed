@@ -9,9 +9,10 @@ services:
     cap_drop: [ALL]
     # DAC_OVERRIDE: podman chowns jail-state to Telegram's uid. setfacl needs no cap: container root owns the files.
     cap_add: [NET_ADMIN, DAC_OVERRIDE]
-    # The ready mark is this netns's ID, so a stale mark from an older jail never matches.
+    # The ready mark is this netns's ID. The kernel can reuse a freed netns ID, so delete the
+    # old mark first, before Telegram's container is up.
     command: >-
-      sh -c 'set -e; apk add --no-cache acl nftables >/dev/null;
+      sh -c 'set -e; rm -f /jail/ready; apk add --no-cache acl nftables >/dev/null;
       rm -f /share/.xauth; setfacl -m u:65534:rwx /share /downloads;
       if [ -S /wayland ]; then setfacl -m u:65534:rw /wayland;
       elif [ -f /xauth ]; then cp /xauth /share/.xauth; setfacl -m u:65534:r /share/.xauth;
@@ -33,7 +34,7 @@ services:
     entrypoint:
       - sh
       - -c
-      - 'for i in $$(seq 300); do [ "$$(cat /jail/ready 2>/dev/null)" = "$$(readlink /proc/self/ns/net)" ] && exec /opt/Telegram/Telegram; sleep 0.1; done; echo "jail never finished, see: podman logs telegram-podman-sandboxed-jail-1"; exit 1'
+      - 'for i in $$(seq 300); do [ "$$(cat /jail/ready 2>/dev/null)" = "$$(readlink /proc/self/ns/net)" ] && exec /opt/Telegram/Telegram $${TG_URL:+-- "$$TG_URL"}; sleep 0.1; done; echo "jail never finished, see: podman logs telegram-podman-sandboxed-jail-1"; exit 1'
     init: true                                 # Else stop waits 10 s: PID 1 ignores SIGTERM.
     user: "65534:65534"
     cap_drop: [ALL]
@@ -45,6 +46,7 @@ services:
     mem_limit: 6g
     environment:
       XDG_RUNTIME_DIR: /tmp
+      TG_URL: ${TG_URL:-}                      # tg:// link to open at start, from launch.sh.
       # Podman allows user namespaces, but Firefox's sandbox then fails chroot (EPERM) and every
       # tab crashes. This makes it skip them and keep its seccomp sandbox.
       MOZ_ASSUME_USER_NS: "0"

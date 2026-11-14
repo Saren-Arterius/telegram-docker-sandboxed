@@ -90,6 +90,12 @@ Do these steps in the project folder.
    sed "s|@DIR@|$PWD|g" telegram.desktop > ~/.local/share/applications/org.telegram.desktop._3e485da34fc040f9218e3891ecde1e6c.desktop
    ```
 
+   To open `tg://` links in this Telegram, type this command:
+
+   ```
+   xdg-mime default org.telegram.desktop._3e485da34fc040f9218e3891ecde1e6c.desktop x-scheme-handler/tg
+   ```
+
 6. Start Telegram:
 
    ```
