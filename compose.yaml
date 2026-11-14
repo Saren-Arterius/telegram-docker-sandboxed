@@ -24,6 +24,7 @@ services:
       - jail-state:/jail
       - ./share:/share
       - ${XDG_DOWNLOAD_DIR:?not set; create .env, see README}/Telegram Desktop:/downloads
+    init: true                                 # Else stop waits 10 s: PID 1 ignores SIGTERM.
     restart: "no"
 
   telegram:

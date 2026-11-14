@@ -6,6 +6,8 @@ if podman compose ps -q --status running telegram | grep -q .; then
   # the link to it and exits.
   [ -z "$1" ] || exec podman compose run --rm --no-deps --entrypoint /opt/Telegram/Telegram telegram -- "$1"
 else
-  # Recreate: after a re-login the jail's display ACL is on the old socket.
-  TG_URL="$1" exec podman compose up -d --force-recreate
+  # Recreate: after a re-login the jail's display ACL is on the old socket. Not --force-recreate:
+  # Podman won't remove the jail while Telegram's container still uses its netns.
+  podman compose down
+  TG_URL="$1" exec podman compose up -d
 fi

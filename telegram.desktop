@@ -15,5 +15,5 @@ Actions=stop;
 
 [Desktop Action stop]
 Name=Stop Telegram
-Exec=/usr/bin/podman compose stop
+Exec=/usr/bin/podman compose down
 Icon=media-playback-stop
