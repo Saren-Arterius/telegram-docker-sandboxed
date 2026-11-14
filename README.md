@@ -4,8 +4,9 @@
 
 This project runs Telegram Desktop in a locked container.
 
-Telegram can run code from messages. Bad code in a message can attack your computer.
-The container stops this code from getting to your files, your network, and your account.
+In November 2026, Telegram had a security bug: a message could run bad code on the device.
+Telegram repaired this bug. But a new bug of this type can occur in the future.
+If it occurs, the container stops the bad code from getting to your files, your network, and your account.
 
 The container gives Telegram these limits:
 
