@@ -4,7 +4,7 @@ Comment=Telegram Desktop in a rootless Podman jail
 # Install under Telegram's Wayland app ID as file name, see README.
 Exec=/usr/bin/podman compose up -d
 Path=@DIR@
-Icon=/usr/share/icons/Numix-Circle/48/apps/telegram-desktop.svg
+Icon=telegram
 Terminal=false
 Type=Application
 StartupWMClass=TelegramDesktop
