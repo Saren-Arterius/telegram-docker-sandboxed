@@ -17,6 +17,20 @@ The container gives Telegram these limits:
 
 You do not need root access to run the container.
 
+## Two versions of this project
+
+There are two versions. Select the version that is applicable to you.
+
+| | [Podman version](https://github.com/Saren-Arterius/telegram-podman-sandboxed) | [smolvm version](https://github.com/Saren-Arterius/telegram-smolvm-sandboxed) |
+|---|---|---|
+| Type | Container | Virtual machine (VM) |
+| Linux kernel | Shared with your computer | Its own kernel. Safer if bad code breaks the kernel. |
+| NVIDIA GPU | Yes (optional) | No. Telegram draws the screen with the CPU. |
+| Desktop | Wayland or X11 | Wayland only |
+| Files that Telegram saves | Belong to a different user | Belong to your user |
+| Tools | Podman. These tools are mature. | smolvm. This tool is new and has some bugs. |
+| Packages | `podman`, `passt` | `smolvm`, `waypipe`, Docker (to build the image) |
+
 ## Before you start
 
 You must have these items:
