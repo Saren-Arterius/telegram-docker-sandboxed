@@ -10,7 +10,8 @@ RUN apt-get update \
  && tar -xJf /tmp/tg.tar.xz -C /opt \
  && chown -R 65534:65534 /opt/Telegram \
  && rm /tmp/tg.tar.xz
-# Wayland libs are dlopen'd, so ldd misses them. Firefox opens links; Ubuntu's package is a
+# Wayland libs are dlopen'd, so ldd misses them. `pipewire` for client.conf and the client
+# modules (compose.audio.yaml); its daemon never runs. Firefox opens links; Ubuntu's package is a
 # snap stub, so it comes from Mozilla's repo.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -21,7 +22,7 @@ RUN apt-get update \
  && apt-get update \
  && apt-get install -y --no-install-recommends firefox \
       libwayland-client0 libwayland-cursor0 libwayland-egl1 libwayland-server0 libegl1 libgbm1 libopengl0 libgl1 libxkbcommon0 \
-      libasound2t64 libx11-6 libxext6 libxrender1 libxcb1 libxcb-render0 libxcb-shm0 \
+      libasound2t64 pipewire libx11-6 libxext6 libxrender1 libxcb1 libxcb-render0 libxcb-shm0 \
       libglib2.0-0t64 libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0 \
       libfreetype6 libfontconfig1 libharfbuzz0b zlib1g \
       fonts-noto-cjk fontconfig ca-certificates xdg-utils \

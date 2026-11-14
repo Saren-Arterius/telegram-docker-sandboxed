@@ -117,6 +117,19 @@ Do not use the GPU if you do not need it.
 
 AMD and Intel GPUs do not operate with this project.
 
+## Use sound (optional)
+
+Without sound, Telegram cannot play sounds, voice messages, or calls.
+
+To use sound, do these steps:
+
+1. In the `.env` file, add `:compose.audio.yaml` to the end of the `COMPOSE_FILE` line.
+2. Type `podman compose build`.
+3. Start Telegram again.
+
+WARNING: Telegram can then use your microphone at all times.
+It can also record the sound of other apps.
+
 ## Start and stop Telegram
 
 To start Telegram, click "Telegram (Podman)" in your app menu.

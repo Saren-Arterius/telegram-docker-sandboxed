@@ -1,0 +1,11 @@
+# PipeWire sound and microphone. Add to COMPOSE_FILE. The socket is mode 0666, so no ACL.
+# pipewire-0 gives the whole media graph: microphone and other apps' streams too.
+services:
+  telegram:
+    environment:
+      PIPEWIRE_REMOTE: /pipewire-0
+    volumes:
+      - type: bind
+        source: ${XDG_RUNTIME_DIR:?not set; run from your desktop session}/pipewire-0
+        target: /pipewire-0
+        bind: { create_host_path: false }
