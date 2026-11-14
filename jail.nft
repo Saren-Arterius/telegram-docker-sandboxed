@@ -1,0 +1,11 @@
+# Loaded into Telegram's network namespace by the jail service. Internet only.
+# pasta's DNS forwarder is 169.254.1.1 and the host is 169.254.1.2.
+table inet tg_jail {
+  chain out {
+    type filter hook output priority 0; policy accept;
+    oifname "lo" accept
+    ip daddr 169.254.1.1 meta l4proto { tcp, udp } th dport 53 accept
+    ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 } reject
+    ip6 daddr { ::1, ::ffff:0:0/96, fc00::/7, fe80::/10, ff00::/8 } reject
+  }
+}

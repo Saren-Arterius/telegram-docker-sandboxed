@@ -1,35 +1,39 @@
+# Rootless Podman: `podman compose up -d`. Container root is your uid on the host; Telegram's
+# uid 65534 is an unused subuid (165533 with the usual /etc/subuid range).
 services:
-  # Root setup before every start: display + downloads ACLs, firewall.
-  x-grant:
-    image: alpine:3.22
-    user: "0"
-    network_mode: host
-    cap_add: [NET_ADMIN]
-    # DNS ACCEPT must name 127.0.0.11; a bare udp/53 ACCEPT leaks to the LAN.
+  # Grants Telegram the display and downloads (ACLs), then owns and firewalls the network
+  # namespace that Telegram joins without NET_ADMIN.
+  jail:
+    image: docker.io/library/alpine:3.22
+    network_mode: pasta
+    cap_drop: [ALL]
+    # DAC_OVERRIDE: podman chowns jail-state to Telegram's uid. setfacl needs no cap: container root owns the files.
+    cap_add: [NET_ADMIN, DAC_OVERRIDE]
+    # The ready mark is this netns's ID, so a stale mark from an older jail never matches.
     command: >-
-      sh -c 'set -e; chown 65534:65534 /share; rm -f /share/.xauth;
-      apk add --no-cache acl iptables >/dev/null;
+      sh -c 'set -e; apk add --no-cache acl nftables >/dev/null;
+      rm -f /share/.xauth; setfacl -m u:65534:rwx /share /downloads;
       if [ -S /wayland ]; then setfacl -m u:65534:rw /wayland;
-      elif [ -f /xauth ]; then install -o 65534 -g 65534 -m 600 /xauth /share/.xauth;
+      elif [ -f /xauth ]; then cp /xauth /share/.xauth; setfacl -m u:65534:r /share/.xauth;
         d=$${DISPLAY#*:}; setfacl -m u:65534:rw /tmp/.X11-unix/X$${d%.*};
       else echo "no display mounted: set COMPOSE_FILE in .env, see README"; exit 1; fi;
-      setfacl -m u:65534:rwx /downloads;
-      iptables -N TG_JAIL 2>/dev/null || true; iptables -F TG_JAIL;
-      iptables -A TG_JAIL -d 127.0.0.11 -p udp --dport 53 -j ACCEPT;
-      iptables -A TG_JAIL -d 224.0.0.0/4,127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,169.254.0.0/16 -j REJECT;
-      for c in INPUT DOCKER-USER; do iptables -C $$c -s 172.27.0.0/24 -j TG_JAIL 2>/dev/null ||
-        iptables -I $$c 1 -s 172.27.0.0/24 -j TG_JAIL; done;
-      echo "x-grant done"'
+      nft -f /jail.nft; readlink /proc/self/ns/net > /jail/ready; exec sleep infinity'
     volumes:
+      - ./jail.nft:/jail.nft:ro
+      - jail-state:/jail
       - ./share:/share
       - ${XDG_DOWNLOAD_DIR:?not set; create .env, see README}/Telegram Desktop:/downloads
     restart: "no"
 
   telegram:
-    build: .
-    depends_on:
-      x-grant:
-        condition: service_completed_successfully
+    build: { context: image, dockerfile: Containerfile }
+    depends_on: [jail]
+    network_mode: service:jail
+    # Podman can't exec into these containers (oom_score_adj), so no healthcheck; wait for the mark.
+    entrypoint:
+      - sh
+      - -c
+      - 'for i in $$(seq 300); do [ "$$(cat /jail/ready 2>/dev/null)" = "$$(readlink /proc/self/ns/net)" ] && exec /opt/Telegram/Telegram; sleep 0.1; done; echo "jail never finished, see: podman logs telegram-podman-sandboxed-jail-1"; exit 1'
     init: true                                 # Else stop waits 10 s: PID 1 ignores SIGTERM.
     user: "65534:65534"
     cap_drop: [ALL]
@@ -41,7 +45,11 @@ services:
     mem_limit: 6g
     environment:
       XDG_RUNTIME_DIR: /tmp
+      # Podman allows user namespaces, but Firefox's sandbox then fails chroot (EPERM) and every
+      # tab crashes. This makes it skip them and keep its seccomp sandbox.
+      MOZ_ASSUME_USER_NS: "0"
     volumes:
+      - jail-state:/jail:ro
       - tg-home:/home/telegram
       - tg-bin:/opt/Telegram                   # Writable for the updater.
       - ./share:/share
@@ -50,15 +58,8 @@ services:
       - ${XDG_DOWNLOAD_DIR}:${XDG_DOWNLOAD_DIR}:ro   # Drag and drop uses host paths.
       - /etc/localtime:/etc/localtime:ro
     restart: "no"
-    networks: [tg-net]
 
 volumes:
+  jail-state:
   tg-home:
   tg-bin:
-
-networks:
-  # Firewall matches this subnet; changing it leaves the old jump rules behind.
-  tg-net:
-    ipam:
-      config:
-        - subnet: 172.27.0.0/24

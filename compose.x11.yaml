@@ -1,6 +1,6 @@
 # X11 display. Weaker than Wayland: X11 clients can keylog each other.
 services:
-  x-grant:
+  jail:
     environment:
       DISPLAY: ${DISPLAY:-:0}
     volumes:

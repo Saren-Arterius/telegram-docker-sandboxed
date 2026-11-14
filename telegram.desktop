@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=Telegram (Docker)
-Comment=Telegram Desktop in a Docker jail
+Name=Telegram (Podman)
+Comment=Telegram Desktop in a rootless Podman jail
 # Install under Telegram's Wayland app ID as file name, see README.
-Exec=/usr/bin/docker compose up -d
+Exec=/usr/bin/podman compose up -d
 Path=@DIR@
 Icon=/usr/share/icons/Numix-Circle/48/apps/telegram-desktop.svg
 Terminal=false
@@ -15,5 +15,5 @@ Actions=stop;
 
 [Desktop Action stop]
 Name=Stop Telegram
-Exec=/usr/bin/docker compose stop
+Exec=/usr/bin/podman compose stop
 Icon=media-playback-stop

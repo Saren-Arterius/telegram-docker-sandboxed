@@ -1,6 +1,6 @@
 # Wayland display.
 services:
-  x-grant:
+  jail:
     volumes:
       - &socket
         type: bind

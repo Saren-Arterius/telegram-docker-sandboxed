@@ -1,4 +1,4 @@
-td-setup-linux-x64-*.tar.xz
+image/td-setup-linux-x64-*.tar.xz
 share/
 .env
 *.log
